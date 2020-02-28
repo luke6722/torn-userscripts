@@ -11,13 +11,16 @@
 // ==/UserScript==
 
 let api_key = "";
+let user_id = "";
 
 (function() {
     'use strict';
 
     $(document).ready(function() {
         if ($(".travelling").length){
-            //fetch_user_company_faction();
+
+            check_user_id();
+
             remove_laptop_frame();
             add_menu_bar();
 
@@ -42,8 +45,6 @@ let api_key = "";
             else if(window.location.href.includes("torn.com/item.php")){
                 console.log("item page");
             }
-
-            console.log("TEST");
         }
     });
 
@@ -98,8 +99,7 @@ function build_company_page(company_id, header_text){
     $(".info-msg-cont").remove();
 
     check_api_key(function() {
-        let url = "https://api.torn.com/company/"+company_id+"?selections=&key="+api_key;
-        apiCall(url, function(d) {
+        apiCall("https://api.torn.com/company/"+company_id+"?selections=&key="+api_key, function(d) {
             let company = d.company;
             console.log(company);
             let company_type = "Unknown";
@@ -107,6 +107,7 @@ function build_company_page(company_id, header_text){
                 company_type = company_types[company.company_type];
             }
             let company_director = "Unknown";
+            let company_director_id = "Unknown";
 
             let company_employees = "<table id='employee-table'><tr><th>"+company.employees_hired+" / "+company.employees_capacity+" Company Employees</th><th>Job Title</th><th>Days in Company</th><th>Status</th><th>Last Seen</th></tr>";
             let employees = company.employees;
@@ -115,19 +116,35 @@ function build_company_page(company_id, header_text){
                             let emp = employees[prop];
                             if (emp.position == "Director") {
                                 company_director = emp.name;
+                                company_director_id = prop;
                             }
                             company_employees += "<tr><td><a href='profiles.php?XID="+prop+"'><div class='user-link'>"+emp.name+"</div></a></td><td>"+emp.position+"</td><td>"+emp.days_in_company+"</td><td>"+emp.status.state+"</td><td>"+emp.last_action.relative+"</td></tr>";
                         }
                     }
             company_employees += "</table>";
 
-            let company_details ="<table id='company-table'><tr><th>Details of "+company.name+" - "+company_type+"<th></th><th></th></tr>";
+            let company_details ="<table class ='company-table'><tr><th>Details of "+company.name+" - "+company_type+"<th></th><th></th></tr>";
             company_details += "<tr><th></th><th>Stars: "+company.rating+" / 10</th><th>Daily Income: $"+format_number(company.daily_profit)+"</th></tr>";
             company_details += "<tr><th></th><th>Type: "+company_type+"</th><th>Weekly Income: $"+format_number(company.weekly_profit)+"</th></tr>";
             company_details += "<tr><th></th><th>Director: "+company_director+"</th><th>Daily Customers: "+format_number(company.daily_customers)+"</th></tr>";
             company_details += "<tr><th></th><th>Age: "+age_decoder(company.days_old)+"</th><th>Weekly Customers: "+format_number(company.weekly_customers)+"</th></tr></table>";
 
-            $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
+            if (company_director_id == user_id) {
+                apiCall("https://api.torn.com/company/?selections=detailed&key="+api_key, function(d_detailed) {
+                    let detailed = d_detailed.company_detailed;
+                    console.log(detailed);
+                    company_details += "<br><br>";
+                    company_details += "<table class ='company-table'><tr><th>Popularity: "+detailed.popularity+"</th><th>Efficiency: "+detailed.efficiency+"</th><th>Environment: "+detailed.environment+"</th></tr>";
+                    company_details += "<tr><th>Bank: $"+format_number(detailed.company_bank)+"</th><th>Ad Budget: $"+format_number(detailed.advertising_budget)+"</th><th>Trains: "+detailed.trains_available+"</th></tr></table>";
+
+                    $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
+                });
+            } else {
+                $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
+            }
+
+
+
         });
     });
 }
@@ -167,6 +184,25 @@ function check_api_key(cb){
     })();
 }
 
+function check_user_id(){
+    (async () => {
+        user_id = await GM.getValue("user_id");
+        if (user_id == undefined) {
+            console.log("finding user id");
+            let script_tags = document.getElementsByTagName("script"), i=script_tags.length;
+            while (i--) {
+                if (script_tags[i].getAttribute('uid') != undefined){
+                    user_id = script_tags[i].getAttribute('uid');
+                    GM.setValue("user_id", user_id);
+                    break;
+                }
+            }
+        }
+        document.getElementById("profile-link").setAttribute('href', "profiles.php?XID=" + user_id);
+        console.log("user_id: " + user_id);
+    })();
+}
+
 function age_decoder(age){
     return ""+Math.floor(age/365)+" years, "+Math.floor((age%365)/31)+" months";
 }
@@ -190,6 +226,7 @@ function add_menu_bar(){
     $( ".header-wrapper-bottom" ).last().append("<div id='super-laptop-menu'></div>");
 
     $("#super-laptop-menu").append("<a href='index.php'><div class='sl-menu-button'>Flight Page</div></a>" +
+                                   "<a href='profiles.php?XID=' id='profile-link'><div class='sl-menu-button'>Profile</div></a>" +
                                    "<a href='messages.php'><div class='sl-menu-button'>Messages</div></a>" +
                                    "<a href='events.php'><div class='sl-menu-button'>Events</div></a>" +
                                    "<a href='companies.php'><div class='sl-menu-button'>Job</div></a>" +
@@ -277,11 +314,11 @@ var styles=`
   border: 1px solid #ddd;
   padding: 8px;
 }
-#company-table {
+.company-table {
   width:100%;
   background-color: rgba(46,46,46);
 }
-#company-table tr {
+.company-table tr {
   padding: 8px;
   width: 20%;
   text-align: left;
@@ -289,7 +326,7 @@ var styles=`
   color: white;
   font-weight: bold;
 }
-#company-table th {
+.company-table th {
   padding: 8px;
   font-weight: none;
 }

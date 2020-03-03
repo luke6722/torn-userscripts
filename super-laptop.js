@@ -80,7 +80,7 @@ function build_faction_page(faction_id, header_text){
             }
             faction_members += "</table>";
 
-            let faction_details ="<table id='company-table'><tr><th>"+faction.name+"<th></th></tr>";
+            let faction_details ="<table class='company-table'><tr><th>"+faction.name+"<th></th></tr>";
             faction_details += "<tr><th></th><th>Leader: <a href='profiles.php?XID="+faction_leader_id+"'>"+faction_leader+"</a></th></tr>";
             faction_details += "<tr><th></th><th>Co-Leader: <a href='profiles.php?XID="+faction_co_leader_id+"'>"+faction_co_leader+"</a></th></tr>";
             faction_details += "<tr><th></th><th>Members: "+Object.keys(faction.members).length+"</th></tr>";
@@ -101,70 +101,101 @@ function build_company_page(company_id, header_text){
     check_api_key(function() {
         apiCall("https://api.torn.com/company/"+company_id+"?selections=&key="+api_key, function(d) {
             let company = d.company;
-            console.log(company);
             let company_type = "Unknown";
             if(company.company_type < company_types.length){
                 company_type = company_types[company.company_type];
             }
-            let company_director = "Unknown";
-            let company_director_id = "Unknown";
+            let company_director = "You";
 
-            let company_employees = "<table id='employee-table'><tr><th>"+company.employees_hired+" / "+company.employees_capacity+" Company Employees</th><th>Job Title</th><th>Days in Company</th><th>Status</th><th>Last Seen</th></tr>";
-            let employees = company.employees;
-            for (var prop in employees) {
-                        if (Object.prototype.hasOwnProperty.call(employees, prop)) {
-                            let emp = employees[prop];
-                            if (emp.position == "Director") {
-                                company_director = emp.name;
-                                company_director_id = prop;
-                            }
-                            company_employees += "<tr><td><a href='profiles.php?XID="+prop+"'><div class='user-link'>"+emp.name+"</div></a></td><td>"+emp.position+"</td><td>"+emp.days_in_company+"</td><td>"+emp.status.state+"</td><td>"+emp.last_action.relative+"</td></tr>";
-                        }
-                    }
-            company_employees += "</table>";
+            let company_employees;
 
-            let company_details ="<table class ='company-table'><tr><th>Details of "+company.name+" - "+company_type+"<th></th><th></th></tr>";
-            company_details += "<tr><th></th><th>Stars: "+company.rating+" / 10</th><th>Daily Income: $"+format_number(company.daily_profit)+"</th></tr>";
-            company_details += "<tr><th></th><th>Type: "+company_type+"</th><th>Weekly Income: $"+format_number(company.weekly_profit)+"</th></tr>";
-            company_details += "<tr><th></th><th>Director: "+company_director+"</th><th>Daily Customers: "+format_number(company.daily_customers)+"</th></tr>";
-            company_details += "<tr><th></th><th>Age: "+age_decoder(company.days_old)+"</th><th>Weekly Customers: "+format_number(company.weekly_customers)+"</th></tr></table>";
-
-            if (company_director_id == user_id) {
-                apiCall("https://api.torn.com/company/?selections=detailed&key="+api_key, function(d_detailed) {
-                    let detailed = d_detailed.company_detailed;
-                    console.log(detailed);
-                    company_details += "<br><br>";
-                    company_details += "<table class ='company-table'><tr><th>Popularity: "+detailed.popularity+"</th><th>Efficiency: "+detailed.efficiency+"</th><th>Environment: "+detailed.environment+"</th></tr>";
-                    company_details += "<tr><th>Bank: $"+format_number(detailed.company_bank)+"</th><th>Ad Budget: $"+format_number(detailed.advertising_budget)+"</th><th>Trains: "+detailed.trains_available+"</th></tr></table>";
-
-                    $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
-                });
+            let employee_url;
+            if (header_text == "Job") {
+                employee_url = "https://api.torn.com/company/?selections=employees&key="+api_key;
+                company_employees = "<table id='employee-table'><tr><th>"+company.employees_hired+" / "+company.employees_capacity+" Employees</th><th>Eff</th><th>MAN / INT / END</th><th>Pay</th><th>Job Title</th><th>Last Seen</th></tr>";
             } else {
-                $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
+                employee_url = "";
+                company_employees = "<table id='employee-table'><tr><th>"+company.employees_hired+" / "+company.employees_capacity+" Employees</th><th>Days</th><th>Status</th><th>Job Title</th><th>Last Seen</th></tr>";
             }
+            apiCall(employee_url, function(d_employees) {
+                let employees;
+                if (d_employees == 0) {
+                    employees = company.employees;
+                } else {
+                    employees = d_employees.company_employees;
+                }
+                console.log(employees);
 
+                for (var prop in employees) {
+                    if (Object.prototype.hasOwnProperty.call(employees, prop)) {
+                        let emp = employees[prop];
+                        if (emp.position == "Director") {
+                            company_director = emp.name;
+                        }
+                        let extra = "";
+                        if (header_text == "Job") {
+                            let stars = "";
+                            for(let i = 1; i <= 5; ++i){
+                                if (i <= emp.effectiveness) {
+                                    stars += "&#x2605; ";
+                                } else {
+                                    stars += "&#x2606; "
+                                }
+                            }
+                            extra = "<td>" + stars + "</td><td>" + emp.manual_labor + " / " + emp.intelligence + " / " + emp.endurance + "</td><td>$" + format_number(emp.wage) + "</td>";
+                        } else {
+                            extra = "<td>" + emp.days_in_company + "</td><td>" + emp.status.state + "</td>";
+                        }
+                        company_employees += "<tr><td><a href='profiles.php?XID="+prop+"'><div class='user-link'>"+emp.name+"</div></a></td>" + extra + "<td>"+emp.position+"</td><td>"+emp.last_action.relative+"</td></tr>";
+                    }
+                }
 
+                company_employees += "</table>";
 
+                let company_details ="<table class ='company-table'><tr><th>Details of "+company.name+" - "+company_type+"<th></th><th></th></tr>";
+                company_details += "<tr><th></th><th>Stars: "+company.rating+" / 10</th><th>Daily Income: $"+format_number(company.daily_profit)+"</th></tr>";
+                company_details += "<tr><th></th><th>Type: "+company_type+"</th><th>Weekly Income: $"+format_number(company.weekly_profit)+"</th></tr>";
+                company_details += "<tr><th></th><th>Director: "+company_director+"</th><th>Daily Customers: "+format_number(company.daily_customers)+"</th></tr>";
+                company_details += "<tr><th></th><th>Age: "+age_decoder(company.days_old)+"</th><th>Weekly Customers: "+format_number(company.weekly_customers)+"</th></tr></table>";
+
+                if (header_text == "Job") {
+                    apiCall("https://api.torn.com/company/?selections=detailed&key="+api_key, function(d_detailed) {
+                        let detailed = d_detailed.company_detailed;
+                        console.log(detailed);
+                        company_details += "<br><br>";
+                        company_details += "<table class ='company-table'><tr><th>Popularity: "+detailed.popularity+"</th><th>Efficiency: "+detailed.efficiency+"</th><th>Environment: "+detailed.environment+"</th></tr>";
+                        company_details += "<tr><th>Bank: $"+format_number(detailed.company_bank)+"</th><th>Ad Budget: $"+format_number(detailed.advertising_budget)+"</th><th>Trains: "+detailed.trains_available+"</th></tr></table>";
+
+                        $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
+                    });
+                } else {
+                    $("#mainContainer").append("<br><br><div id='company-details'>"+company_details+"</div><br><br><div id='company-employees'>"+company_employees+"</div>");
+                }
+            });
         });
     });
 }
 
 function apiCall(url, cb){
-    $.ajax({
-        url: url,
-        type: 'GET',
-        success: function(data) {
-            if(typeof(data) != "undefined"){
-                if(typeof(data.error) != "undefined"){
-                    if(data.error.error == "Incorrect key") {
-                        api_key = prompt("Your API key seems to be incorrect, or has changed. Please enter a new API key here, and refresh the page:");
-                        GM.setValue("api_key", api_key);
+    if (url == "") {
+        cb(0);
+    } else {
+        $.ajax({
+            url: url,
+            type: 'GET',
+            success: function(data) {
+                if(typeof(data) != "undefined"){
+                    if(typeof(data.error) != "undefined"){
+                        if(data.error.error == "Incorrect key") {
+                            api_key = prompt("Your API key seems to be incorrect, or has changed. Please enter a new API key here, and refresh the page:");
+                            GM.setValue("api_key", api_key);
+                        }
                     }
                 }
+                cb(data);
             }
-            cb(data);
-        }
-    });
+        });
+    }
 }
 
 function check_api_key(cb){
@@ -304,7 +335,7 @@ var styles=`
 }
 #employee-table th {
   padding: 8px;
-  width: 20%;
+  width: 15%;
   text-align: left;
   background-color: rgba(46,46,46);
   color: white;
@@ -320,7 +351,7 @@ var styles=`
 }
 .company-table tr {
   padding: 8px;
-  width: 20%;
+  width: 15%;
   text-align: left;
   background-color: rgba(46,46,46);
   color: white;

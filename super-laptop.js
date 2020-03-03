@@ -10,6 +10,7 @@
 // @grant        GM.deleteValue
 // ==/UserScript==
 
+// global variables, because I have no coding discipline
 let api_key = "";
 let user_id = "";
 
@@ -17,12 +18,11 @@ let user_id = "";
     'use strict';
 
     $(document).ready(function() {
-        if ($(".travelling").length){
+        if ($(".travelling").length){ // this checks the html for any elements that have the class "traveling". This is the only full-proof way I could find to determine if the script should be turned on or not.
 
-            check_user_id();
-
-            remove_laptop_frame();
-            add_menu_bar();
+            check_user_id();          // make sure we have the user id... this is just in case the user clicks the profile button
+            remove_laptop_frame();    // removes the laptop frame, re expands the page content
+            add_menu_bar();           // adds bar at the top for navigation
 
             if(window.location.href.includes("torn.com/companies.php")){
                 console.log("your company page");
@@ -30,12 +30,12 @@ let user_id = "";
             }
             else if(window.location.href.includes("joblist.php#/p=corpinfo&ID=")){
                 console.log("a company page");
-                const company_id = window.location.href.split("joblist.php#/p=corpinfo&ID=")[1];
+                const company_id = window.location.href.split("joblist.php#/p=corpinfo&ID=")[1];     //extracting the company_id from the url, to feed to the api
                 build_company_page(company_id, "Job Listing");
             }
             else if(window.location.href.includes("factions.php?step=profile&ID=")){
                 console.log("a faction page");
-                const faction_id = window.location.href.split("factions.php?step=profile&ID=")[1];
+                const faction_id = window.location.href.split("factions.php?step=profile&ID=")[1];   //extracting the faction_id from the url, to feed to the api
                 build_faction_page(faction_id, "Faction");
             }
             else if(window.location.href.includes("torn.com/factions.php")){
@@ -43,7 +43,7 @@ let user_id = "";
                 build_faction_page(0, "My Faction");
             }
             else if(window.location.href.includes("torn.com/item.php")){
-                console.log("item page");
+                console.log("item page"); // coming soon
             }
         }
     });
@@ -53,10 +53,17 @@ let user_id = "";
 
 
 function build_faction_page(faction_id, header_text){
+    // changes the header text
     $("#skip-to-content")[0].innerText = header_text;
+
+    // removes the "you can't view this while traveling" text (heheheh...)
     $(".info-msg-cont").remove();
+
+    // checking that i know the user's api key before i try to use it
     check_api_key(function() {
-        let url = "https://api.torn.com/faction/"+faction_id+"?selections=&key="+api_key;
+
+        // making an api call for basic company info
+        let url = "https://api.torn.com/faction/"+faction_id+"?selections=&key="+api_key; // api call to get basic faction info
         apiCall(url, function(d) {
             let faction = d;
             console.log(faction);
@@ -67,6 +74,8 @@ function build_faction_page(faction_id, header_text){
 
             let faction_members = "<table id='employee-table'><tr><th>Members</th><th>Days in Faction</th><th>Status</th><th>Last Seen</th></tr>";
             let members = faction.members;
+
+            // cycling through faction members, checking if they are the faction leader or co leader for future use, and creating a row for each member based on info from the api
             for (var prop in members) {
                 if (Object.prototype.hasOwnProperty.call(members, prop)) {
                     let mem = members[prop];
@@ -80,6 +89,7 @@ function build_faction_page(faction_id, header_text){
             }
             faction_members += "</table>";
 
+            // 2nd table, which is the top one and gives basic info. This table had to be crated second because I found the faction leader and co leader while creating the member table
             let faction_details ="<table class='company-table'><tr><th>"+faction.name+"<th></th></tr>";
             faction_details += "<tr><th></th><th>Leader: <a href='profiles.php?XID="+faction_leader_id+"'>"+faction_leader+"</a></th></tr>";
             faction_details += "<tr><th></th><th>Co-Leader: <a href='profiles.php?XID="+faction_co_leader_id+"'>"+faction_co_leader+"</a></th></tr>";
@@ -88,6 +98,7 @@ function build_faction_page(faction_id, header_text){
             faction_details += "<tr><th></th><th>Respect: "+format_number(faction.respect)+"</th></tr>";
             faction_details += "<tr><th></th><th>Age: "+age_decoder(faction.age)+"</th></tr></table>";
 
+            // appending the two tables I just created to the html
             $("#mainContainer").append("<br><br><div id='company-details' class='company-divs'>"+faction_details+"</div><br><br><div id='company-employees' class='company-divs'>"+faction_members+"</div>");
 
         });
@@ -95,21 +106,33 @@ function build_faction_page(faction_id, header_text){
 }
 
 function build_company_page(company_id, header_text){
+    // changes the header text
     $("#skip-to-content")[0].innerText = header_text;
+
+    // removes the "you can't view this while traveling" text (heheheh...)
     $(".info-msg-cont").remove();
 
+    // checking that i know the user's api key before i try to use it
     check_api_key(function() {
+
+        // making an api call for basic company info
         apiCall("https://api.torn.com/company/"+company_id+"?selections=&key="+api_key, function(d) {
             let company = d.company;
             let company_type = "Unknown";
+
+            // taking the number the api gives me as the company type, and getting an actual type name based on the company_types array i have defined below
             if(company.company_type < company_types.length){
                 company_type = company_types[company.company_type];
             }
+
+            // if the company_director isn't found and reassigned below, it should mean that you are the company director
             let company_director = "You";
 
             let company_employees;
 
             let employee_url;
+
+            // if this is the company you are in, make an extra api call to find out more detailed info, and set the first row of the table accordingly. otherwise, pass the api call function an empty string and it won't do anything
             if (header_text == "Job") {
                 employee_url = "https://api.torn.com/company/?selections=employees&key="+api_key;
                 company_employees = "<table id='employee-table'><tr><th>"+company.employees_hired+" / "+company.employees_capacity+" Employees</th><th>Eff</th><th>MAN / INT / END</th><th>Pay</th><th>Job Title</th><th>Last Seen</th></tr>";
@@ -119,6 +142,8 @@ function build_company_page(company_id, header_text){
             }
             apiCall(employee_url, function(d_employees) {
                 let employees;
+
+                // if you didn't actually make the api call (based on the if-statement right above it) then use the previous api call for employee info. Otherwise, use the new one.
                 if (d_employees == 0) {
                     employees = company.employees;
                 } else {
@@ -134,6 +159,7 @@ function build_company_page(company_id, header_text){
                         }
                         let extra = "";
                         if (header_text == "Job") {
+                            // find the stars of effectiveness
                             let stars = "";
                             for(let i = 1; i <= 5; ++i){
                                 if (i <= emp.effectiveness) {
@@ -142,8 +168,10 @@ function build_company_page(company_id, header_text){
                                     stars += "&#x2606; "
                                 }
                             }
+                            // if it's your company, extract this info
                             extra = "<td>" + stars + "</td><td>" + emp.manual_labor + " / " + emp.intelligence + " / " + emp.endurance + "</td><td>$" + format_number(emp.wage) + "</td>";
                         } else {
+                            // otherwise, extract this less exciting info
                             extra = "<td>" + emp.days_in_company + "</td><td>" + emp.status.state + "</td>";
                         }
                         company_employees += "<tr><td><a href='profiles.php?XID="+prop+"'><div class='user-link'>"+emp.name+"</div></a></td>" + extra + "<td>"+emp.position+"</td><td>"+emp.last_action.relative+"</td></tr>";
@@ -152,6 +180,7 @@ function build_company_page(company_id, header_text){
 
                 company_employees += "</table>";
 
+                // company details, the first table of the page
                 let company_details ="<table class ='company-table'><tr><th>Details of "+company.name+" - "+company_type+"<th></th><th></th></tr>";
                 company_details += "<tr><th></th><th>Stars: "+company.rating+" / 10</th><th>Daily Income: $"+format_number(company.daily_profit)+"</th></tr>";
                 company_details += "<tr><th></th><th>Type: "+company_type+"</th><th>Weekly Income: $"+format_number(company.weekly_profit)+"</th></tr>";
@@ -159,6 +188,7 @@ function build_company_page(company_id, header_text){
                 company_details += "<tr><th></th><th>Age: "+age_decoder(company.days_old)+"</th><th>Weekly Customers: "+format_number(company.weekly_customers)+"</th></tr></table>";
 
                 if (header_text == "Job") {
+                    // if it's the company you're in, that's right a THIRD api call for more details about the company itself. This will be the second table of the page.
                     apiCall("https://api.torn.com/company/?selections=detailed&key="+api_key, function(d_detailed) {
                         let detailed = d_detailed.company_detailed;
                         console.log(detailed);
@@ -177,14 +207,14 @@ function build_company_page(company_id, header_text){
 }
 
 function apiCall(url, cb){
-    if (url == "") {
+    if (url == "") { //if a url is not passed, return 0
         cb(0);
     } else {
         $.ajax({
             url: url,
             type: 'GET',
             success: function(data) {
-                if(typeof(data) != "undefined"){
+                if(typeof(data) != "undefined"){ // if what has been entered is not an api key, or if the user has since changed their api key, prompt for a new one
                     if(typeof(data.error) != "undefined"){
                         if(data.error.error == "Incorrect key") {
                             api_key = prompt("Your API key seems to be incorrect, or has changed. Please enter a new API key here, and refresh the page:");
@@ -198,6 +228,7 @@ function apiCall(url, cb){
     }
 }
 
+// checks to see if the api key has been saved in this userscript, and if not, prompts the user for it, then saves it
 function check_api_key(cb){
     (async () => {
         api_key = await GM.getValue("api_key");
@@ -215,16 +246,17 @@ function check_api_key(cb){
     })();
 }
 
+// checks to see if the use_id has been saved in this userscript, and if not, goes and finds it where it exists in the html
 function check_user_id(){
     (async () => {
         user_id = await GM.getValue("user_id");
         if (user_id == undefined) {
             console.log("finding user id");
-            let script_tags = document.getElementsByTagName("script"), i=script_tags.length;
+            let script_tags = document.getElementsByTagName("script"), i=script_tags.length; // searching through all the html elements that are tagged as script
             while (i--) {
-                if (script_tags[i].getAttribute('uid') != undefined){
-                    user_id = script_tags[i].getAttribute('uid');
-                    GM.setValue("user_id", user_id);
+                if (script_tags[i].getAttribute('uid') != undefined){ // tries to find the one that has 'uid' defined as an element
+                    user_id = script_tags[i].getAttribute('uid'); // once it finds it, saves it as user_id
+                    GM.setValue("user_id", user_id); // saves it internally to the script, so we shouldn't have to do this every time
                     break;
                 }
             }
@@ -234,14 +266,22 @@ function check_user_id(){
     })();
 }
 
+// takes in an age in days, and spits it out in years and months
 function age_decoder(age){
     return ""+Math.floor(age/365)+" years, "+Math.floor((age%365)/31)+" months";
 }
 
+// adds commas to a number to make it more readable
 function format_number(num) {
-  return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
+    if (num == undefined) {
+        return "0";
+    } else {
+        return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
+    }
 }
 
+// removes all the frame elements
+// removes the computer-frame-wrap class from the div it is in, in order for the div to remain but the class to go, so the css won't style that div
 function remove_laptop_frame(){
     $(".computer-top-frame").remove();
     $(".computer-left-frame").remove();
@@ -252,6 +292,9 @@ function remove_laptop_frame(){
     $(".computer-frame-wrap").removeClass( "computer-frame-wrap" );
 }
 
+// makes duplicates the black horizontal bar at the top
+// adds an id to the new one, so i can style it
+// adds in buttons that function as links to the different parts of torn
 function add_menu_bar(){
     let super_laptop_menu = $( ".header-wrapper-bottom" ).clone().insertAfter( ".header-wrapper-bottom" );
     $( ".header-wrapper-bottom" ).last().append("<div id='super-laptop-menu'></div>");
@@ -273,6 +316,7 @@ function add_menu_bar(){
                                    "<a href='personalstats.php'><div class='sl-menu-button'>Personal Stats</div></a>");
 }
 
+//hard-coded to avoid an api call when displaying the company type in the job page
 const company_types = ["",
                      "Hair Salon", //1
                      "Law Firm", //2
